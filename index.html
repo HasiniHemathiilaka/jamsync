@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JamSync - Real-Time Remote Music Jam Platform</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header>
+            <div class="logo">
+                <i class="fas fa-compact-disc spin"></i>
+                <h1>JamSync</h1>
+            </div>
+            <div class="connection-info">
+                <div class="status-container">
+                    <span class="status-dot"></span>
+                    <span id="connection-status">Connecting...</span>
+                </div>
+                <div class="my-id-container">
+                    <span class="id-label">Your Jam ID:</span>
+                    <strong id="my-peer-id" class="skeleton-text">.......</strong>
+                    <button id="copy-id-btn" title="Copy ID"><i class="fas fa-copy"></i></button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main>
+            <!-- Video Area -->
+            <div class="video-section">
+                <div class="video-grid" id="video-grid">
+                    <!-- Local Video -->
+                    <div class="video-wrapper local-video" id="local-video-wrapper">
+                        <video id="local-video" autoplay muted playsinline></video>
+                        <div class="video-label"><i class="fas fa-user"></i> You</div>
+                        <div class="audio-indicator"><i class="fas fa-microphone"></i></div>
+                    </div>
+                    <!-- Remote videos will go here -->
+                </div>
+                
+                <!-- Controls Bar -->
+                <div class="controls-bar">
+                    <div class="control-group media-controls">
+                        <button id="toggle-audio-btn" class="control-btn active" title="Mute/Unmute Microphone">
+                            <i class="fas fa-microphone"></i>
+                        </button>
+                        <button id="toggle-video-btn" class="control-btn active" title="Turn Camera Off/On">
+                            <i class="fas fa-video"></i>
+                        </button>
+                        <button id="toggle-screen-btn" class="control-btn active" title="Share Screen">
+                            <i class="fas fa-desktop"></i>
+                        </button>
+                    </div>
+                    
+                    <div class="call-controls">
+                        <div class="input-wrapper">
+                            <i class="fas fa-link"></i>
+                            <input type="text" id="remote-peer-id" placeholder="Paste friend's ID here...">
+                        </div>
+                        <button id="call-btn" class="action-btn call"><i class="fas fa-phone-alt"></i> Connect</button>
+                        <button id="end-call-btn" class="action-btn end-call hidden"><i class="fas fa-phone-slash"></i> Disconnect</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Chat Area -->
+            <div class="chat-section">
+                <div class="chat-header">
+                    <h3><i class="fas fa-comments"></i> Jam Chat</h3>
+                    <span class="chat-status" id="chat-status">Offline</span>
+                </div>
+                <div class="chat-messages" id="chat-messages">
+                    <div class="system-message">
+                        <div class="message-content">
+                            <i class="fas fa-info-circle"></i>
+                            <p>Welcome to JamSync! Share your ID with a friend to start your remote music jam session.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="chat-input-area">
+                    <input type="text" id="chat-input" placeholder="Type a message..." disabled>
+                    <button id="send-btn" class="send-btn" disabled><i class="fas fa-paper-plane"></i></button>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Notification system -->
+    <div id="notification-container" class="notification-container"></div>
+
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
