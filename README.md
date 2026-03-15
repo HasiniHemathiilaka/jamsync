@@ -1,4 +1,4 @@
-# 🎸 JamSync — Real-Time Remote Music Jam Platform
+# 🎸 JamSync — Real-Time Remote Jam Platform
 
 A **WebRTC peer-to-peer video conferencing application** built for the **EC9520 Advanced Computer and Data Network** assignment at the University of Jaffna.
 
