@@ -245,7 +245,7 @@ function startRecording() {
                             new MediaStream([audioTracks[0]])
                         );
                         src.connect(destination);
-                    } catch(e) { /* already connected or unavailable */ }
+                    } catch (e) { /* already connected or unavailable */ }
                 }
             }
         });
@@ -428,7 +428,7 @@ function addRemoteVideo(stream, peerId) {
         const existingVideo = existingWrapper.querySelector('video');
         if (existingVideo) {
             existingVideo.srcObject = stream;
-            existingVideo.play().catch(() => {});
+            existingVideo.play().catch(() => { });
         }
         return;
     }
@@ -441,7 +441,7 @@ function addRemoteVideo(stream, peerId) {
     video.srcObject = stream;
     video.autoplay = true;
     video.playsinline = true;
-    video.play().catch(() => {});
+    video.play().catch(() => { });
 
     const userName = remoteUsernames[peerId] || 'Peer';
     const label = document.createElement('div');
@@ -554,7 +554,7 @@ toggleScreenBtn.addEventListener('click', async () => {
                 if (call && call.peerConnection) {
                     const senders = call.peerConnection.getSenders();
                     const videoSender = senders.find(s => s.track && s.track.kind === 'video') ||
-                                        senders.find(s => !s.track || s.track.kind === 'video');
+                        senders.find(s => !s.track || s.track.kind === 'video');
                     if (videoSender) {
                         videoSender.replaceTrack(screenTrack).catch(err => console.error(err));
                     }
@@ -603,7 +603,7 @@ function stopScreenShare() {
         if (call && call.peerConnection) {
             const senders = call.peerConnection.getSenders();
             const videoSender = senders.find(s => s.track && s.track.kind === 'video') ||
-                                senders.find(s => !s.track || s.track.kind === 'video');
+                senders.find(s => !s.track || s.track.kind === 'video');
             if (videoSender && cameraTrack) {
                 videoSender.replaceTrack(cameraTrack).catch(e => console.warn(e));
             }
@@ -873,7 +873,7 @@ function handleDataConnection(conn) {
                 default:
                     break;
             }
-        } catch(e) {
+        } catch (e) {
             console.warn('Non-JSON message received:', rawData);
         }
     });
@@ -981,7 +981,7 @@ async function init() {
     try {
         localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
         localVideo.srcObject = localStream;
-        localVideo.play().catch(() => {});
+        localVideo.play().catch(() => { });
         showNotification('Camera & microphone ready!', 'success');
     } catch (err) {
         console.warn('Could not get full media, trying audio-only:', err);
