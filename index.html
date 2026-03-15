@@ -11,6 +11,19 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
+    <!-- Username Modal -->
+    <div id="username-modal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="logo">
+                <i class="fas fa-compact-disc spin"></i>
+                <h2>Welcome to JamSync</h2>
+            </div>
+            <p>Enter your name to join the jam session:</p>
+            <input type="text" id="username-input" placeholder="Your name..." maxlength="20" autofocus>
+            <button id="join-jam-btn" class="action-btn call">Join Jam</button>
+        </div>
+    </div>
+
     <div class="app-container">
         <!-- Header -->
         <header>
@@ -92,6 +105,10 @@
                             <button class="reaction-emoji" data-emoji="🎸">🎸</button>
                             <button class="reaction-emoji" data-emoji="🥁">🥁</button>
                         </div>
+                        <div class="control-divider"></div>
+                        <button id="record-btn" class="control-btn" title="Record Session">
+                            <i class="fas fa-circle"></i>
+                        </button>
                     </div>
                     
                     <div class="call-controls">

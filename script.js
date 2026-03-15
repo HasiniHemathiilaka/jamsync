@@ -3,7 +3,7 @@
 //  WebRTC peer-to-peer logic using PeerJS
 //  Advanced Features: Raise Hand, Emoji Reactions,
 //  Meeting Timer, Fullscreen, Typing Indicator,
-//  Emoji Picker, Sound Notifications
+//  Emoji Picker, Sound Notifications, Session Recording
 // =====================================================
 
 // --- State ---
@@ -17,6 +17,15 @@ let meetingTimerInterval = null;
 let meetingSeconds = 0;
 let typingTimeout = null;
 let peerTypingTimeout = null;
+let mediaRecorder = null;
+let recordedChunks = [];
+let isRecording = false;
+let recordingCanvas = null;
+let recordingCtx = null;
+let recordingAnimFrame = null;
+let recordingMixedStream = null;
+let localUsername = 'You';
+let remoteUsernames = {}; // peerId -> username
 
 // --- DOM Elements ---
 const myPeerIdEl = document.getElementById('my-peer-id');
@@ -47,6 +56,10 @@ const chatEmojiBtn = document.getElementById('chat-emoji-btn');
 const chatEmojiPicker = document.getElementById('chat-emoji-picker');
 const emojiPickerGrid = document.getElementById('emoji-picker-grid');
 const localHandIndicator = document.getElementById('local-hand-indicator');
+const recordBtn = document.getElementById('record-btn');
+const usernameModal = document.getElementById('username-modal');
+const usernameInput = document.getElementById('username-input');
+const joinJamBtn = document.getElementById('join-jam-btn');
 
 // --- Sound Effects (Web Audio API) ---
 let audioContext = null;
@@ -102,6 +115,224 @@ function playSound(type) {
     } catch (e) {
         // Audio not available — fail silently
     }
+}
+
+// --- Recording ---
+recordBtn.addEventListener('click', () => {
+    if (!isRecording) {
+        startRecording();
+    } else {
+        stopRecording();
+    }
+});
+
+function startRecording() {
+    try {
+        // Create an offscreen canvas for compositing videos
+        recordingCanvas = document.createElement('canvas');
+        recordingCanvas.width = 1280;
+        recordingCanvas.height = 720;
+        recordingCtx = recordingCanvas.getContext('2d');
+
+        // Draw loop: composite local + remote videos onto canvas
+        function drawFrame() {
+            recordingCtx.fillStyle = '#0f172a';
+            recordingCtx.fillRect(0, 0, 1280, 720);
+
+            const videos = document.querySelectorAll('#video-grid video');
+            if (videos.length === 1) {
+                // Single video — full canvas
+                drawVideoToCanvas(videos[0], 0, 0, 1280, 720);
+            } else if (videos.length === 2) {
+                // Side by side
+                drawVideoToCanvas(videos[0], 0, 0, 640, 720);
+                drawVideoToCanvas(videos[1], 640, 0, 640, 720);
+            } else if (videos.length > 2) {
+                // Grid layout
+                const cols = Math.ceil(Math.sqrt(videos.length));
+                const rows = Math.ceil(videos.length / cols);
+                const w = Math.floor(1280 / cols);
+                const h = Math.floor(720 / rows);
+                videos.forEach((vid, i) => {
+                    const col = i % cols;
+                    const row = Math.floor(i / cols);
+                    drawVideoToCanvas(vid, col * w, row * h, w, h);
+                });
+            }
+
+            // Add recording indicator
+            recordingCtx.fillStyle = '#ef4444';
+            recordingCtx.beginPath();
+            recordingCtx.arc(30, 30, 10, 0, Math.PI * 2);
+            recordingCtx.fill();
+            recordingCtx.fillStyle = '#ffffff';
+            recordingCtx.font = '16px Inter, sans-serif';
+            recordingCtx.fillText('REC', 48, 36);
+
+            // Add timestamp
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString();
+            recordingCtx.fillStyle = 'rgba(0,0,0,0.6)';
+            recordingCtx.fillRect(1280 - 120, 10, 110, 30);
+            recordingCtx.fillStyle = '#ffffff';
+            recordingCtx.font = '14px monospace';
+            recordingCtx.fillText(timeStr, 1280 - 112, 30);
+
+            recordingAnimFrame = requestAnimationFrame(drawFrame);
+        }
+
+        function drawVideoToCanvas(videoEl, x, y, w, h) {
+            try {
+                if (videoEl.readyState >= 2) {
+                    // Maintain aspect ratio
+                    const vw = videoEl.videoWidth || w;
+                    const vh = videoEl.videoHeight || h;
+                    const scale = Math.min(w / vw, h / vh);
+                    const dw = vw * scale;
+                    const dh = vh * scale;
+                    const dx = x + (w - dw) / 2;
+                    const dy = y + (h - dh) / 2;
+                    recordingCtx.drawImage(videoEl, dx, dy, dw, dh);
+                }
+            } catch (e) {
+                // Cross-origin or not ready — draw placeholder
+                recordingCtx.fillStyle = '#1e293b';
+                recordingCtx.fillRect(x, y, w, h);
+            }
+        }
+
+        drawFrame();
+
+        // Get canvas video stream
+        const canvasStream = recordingCanvas.captureStream(30); // 30fps
+
+        // Mix all audio tracks using AudioContext
+        const mixCtx = getAudioContext();
+        const destination = mixCtx.createMediaStreamDestination();
+
+        // Add local audio
+        if (localStream) {
+            const localAudioTracks = localStream.getAudioTracks();
+            if (localAudioTracks.length > 0) {
+                const localSource = mixCtx.createMediaStreamSource(
+                    new MediaStream([localAudioTracks[0]])
+                );
+                localSource.connect(destination);
+            }
+        }
+
+        // Add remote audio from all peers
+        for (const id in activeConnections) {
+            const call = activeConnections[id].call;
+            if (call && call.remoteStream) {
+                const remoteAudioTracks = call.remoteStream.getAudioTracks();
+                if (remoteAudioTracks.length > 0) {
+                    const remoteSource = mixCtx.createMediaStreamSource(
+                        new MediaStream([remoteAudioTracks[0]])
+                    );
+                    remoteSource.connect(destination);
+                }
+            }
+        }
+
+        // Also try getting remote audio from video elements
+        document.querySelectorAll('#video-grid video').forEach(vid => {
+            if (vid.id !== 'local-video' && vid.srcObject) {
+                const audioTracks = vid.srcObject.getAudioTracks();
+                if (audioTracks.length > 0) {
+                    try {
+                        const src = mixCtx.createMediaStreamSource(
+                            new MediaStream([audioTracks[0]])
+                        );
+                        src.connect(destination);
+                    } catch(e) { /* already connected or unavailable */ }
+                }
+            }
+        });
+
+        // Combine canvas video + mixed audio into one stream
+        recordingMixedStream = new MediaStream([
+            ...canvasStream.getVideoTracks(),
+            ...destination.stream.getAudioTracks()
+        ]);
+
+        // Start MediaRecorder
+        const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')
+            ? 'video/webm;codecs=vp9,opus'
+            : MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')
+                ? 'video/webm;codecs=vp8,opus'
+                : 'video/webm';
+
+        recordedChunks = [];
+        mediaRecorder = new MediaRecorder(recordingMixedStream, {
+            mimeType,
+            videoBitsPerSecond: 2500000  // 2.5 Mbps
+        });
+
+        mediaRecorder.ondataavailable = (event) => {
+            if (event.data && event.data.size > 0) {
+                recordedChunks.push(event.data);
+            }
+        };
+
+        mediaRecorder.onstop = () => {
+            const blob = new Blob(recordedChunks, { type: mimeType });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+            a.href = url;
+            a.download = `JamSync-Recording-${timestamp}.webm`;
+            a.style.display = 'none';
+            document.body.appendChild(a);
+            a.click();
+            setTimeout(() => {
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }, 100);
+            showNotification('Recording saved!', 'success');
+        };
+
+        mediaRecorder.start(1000); // Collect data every second
+        isRecording = true;
+
+        recordBtn.classList.add('recording');
+        recordBtn.innerHTML = '<i class="fas fa-stop"></i>';
+        recordBtn.title = 'Stop Recording';
+        showNotification('🔴 Recording started!', 'info');
+        addSystemMessage('Recording started.');
+
+    } catch (err) {
+        console.error('Recording error:', err);
+        showNotification('Could not start recording: ' + err.message, 'error');
+    }
+}
+
+function stopRecording() {
+    if (!isRecording) return;
+
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+        mediaRecorder.stop();
+    }
+
+    if (recordingAnimFrame) {
+        cancelAnimationFrame(recordingAnimFrame);
+        recordingAnimFrame = null;
+    }
+
+    if (recordingMixedStream) {
+        recordingMixedStream.getTracks().forEach(t => t.stop());
+        recordingMixedStream = null;
+    }
+
+    recordingCanvas = null;
+    recordingCtx = null;
+    isRecording = false;
+
+    recordBtn.classList.remove('recording');
+    recordBtn.innerHTML = '<i class="fas fa-circle"></i>';
+    recordBtn.title = 'Record Session';
+    showNotification('Recording stopped. File downloading...', 'info');
+    addSystemMessage('Recording saved.');
 }
 
 // --- Helpers ---
@@ -212,9 +443,10 @@ function addRemoteVideo(stream, peerId) {
     video.playsinline = true;
     video.play().catch(() => {});
 
+    const userName = remoteUsernames[peerId] || 'Peer';
     const label = document.createElement('div');
     label.classList.add('video-label');
-    label.innerHTML = `<i class="fas fa-user"></i> Peer`;
+    label.innerHTML = `<i class="fas fa-user"></i> <span id="label-${peerId}">${escapeHtml(userName)}</span>`;
 
     const audioInd = document.createElement('div');
     audioInd.classList.add('audio-indicator');
@@ -526,13 +758,13 @@ function sendMessage() {
     for (const id in activeConnections) {
         const dc = activeConnections[id].dataChannel;
         if (dc && dc.open) {
-            dc.send(JSON.stringify({ type: 'chat', text, sender: 'You (Peer)' }));
+            dc.send(JSON.stringify({ type: 'chat', text, sender: localUsername }));
             sent = true;
         }
     }
 
     if (sent) {
-        addChatMessage(text, 'You', 'sent');
+        addChatMessage(text, localUsername, 'sent');
         chatInput.value = '';
         // Stop typing indicator
         broadcastData({ type: 'typing', isTyping: false });
@@ -557,22 +789,25 @@ function handleCall(call) {
     call.on('stream', (remoteStream) => {
         addRemoteVideo(remoteStream, call.peer);
         playSound('join');
-        showNotification(`🎸 Peer connected!`, 'success');
-        addSystemMessage(`Peer joined the jam session.`);
+        const name = remoteUsernames[call.peer] || 'Peer';
+        showNotification(`🎸 ${escapeHtml(name)} connected!`, 'success');
+        addSystemMessage(`${escapeHtml(name)} joined the jam session.`);
         startMeetingTimer();
     });
 
     call.on('close', () => {
+        const name = remoteUsernames[call.peer] || 'A peer';
         removeRemoteVideo(call.peer);
         delete activeConnections[call.peer];
+        delete remoteUsernames[call.peer];
         updateParticipantCount();
         updateCallUI(Object.keys(activeConnections).length > 0);
         if (Object.keys(activeConnections).length === 0) {
             stopMeetingTimer();
         }
         playSound('leave');
-        addSystemMessage(`A peer has left the session.`);
-        showNotification('Peer disconnected.', 'info');
+        addSystemMessage(`${escapeHtml(name)} has left the session.`);
+        showNotification(`${escapeHtml(name)} disconnected.`, 'info');
     });
 
     call.on('error', (err) => {
@@ -589,6 +824,8 @@ function handleDataConnection(conn) {
 
     conn.on('open', () => {
         updateChatUI(true);
+        // Share our username right away
+        conn.send(JSON.stringify({ type: 'user-info', username: localUsername }));
     });
 
     conn.on('data', (rawData) => {
@@ -596,8 +833,17 @@ function handleDataConnection(conn) {
             const data = JSON.parse(rawData);
 
             switch (data.type) {
+                case 'user-info':
+                    remoteUsernames[conn.peer] = data.username;
+                    const labelSpan = document.getElementById(`label-${conn.peer}`);
+                    if (labelSpan) {
+                        labelSpan.textContent = data.username;
+                    }
+                    break;
+
                 case 'chat':
-                    addChatMessage(data.text, 'Peer', 'received');
+                    const senderName = data.sender || remoteUsernames[conn.peer] || 'Peer';
+                    addChatMessage(data.text, senderName, 'received');
                     showTypingIndicator(false);
                     break;
 
@@ -613,6 +859,8 @@ function handleDataConnection(conn) {
                 case 'typing':
                     clearTimeout(peerTypingTimeout);
                     if (data.isTyping) {
+                        const senderName = remoteUsernames[conn.peer] || 'Peer';
+                        document.querySelector('.typing-text').textContent = `${escapeHtml(senderName)} is typing`;
                         showTypingIndicator(true);
                         peerTypingTimeout = setTimeout(() => {
                             showTypingIndicator(false);
@@ -702,6 +950,7 @@ callBtn.addEventListener('click', () => {
 
 // --- Hang Up ---
 endCallBtn.addEventListener('click', () => {
+    if (isRecording) stopRecording();
     if (isScreenSharing) stopScreenShare();
     if (isHandRaised) {
         isHandRaised = false;
@@ -815,5 +1064,26 @@ async function init() {
     });
 }
 
-// Start the app
-init();
+// --- Entry Point ---
+joinJamBtn.addEventListener('click', startApp);
+usernameInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') startApp();
+});
+
+function startApp() {
+    const name = usernameInput.value.trim();
+    if (name) {
+        localUsername = name;
+        const localVideoLabel = document.querySelector('#local-video-wrapper .video-label');
+        if (localVideoLabel) {
+            localVideoLabel.innerHTML = `<i class="fas fa-user"></i> ${escapeHtml(localUsername)} (You)`;
+        }
+        usernameModal.classList.add('hidden');
+        init();
+    } else {
+        usernameInput.classList.add('error-shake');
+        setTimeout(() => usernameInput.classList.remove('error-shake'), 400);
+        usernameInput.focus();
+    }
+}
+
