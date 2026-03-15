@@ -19,6 +19,16 @@
                 <h1>JamSync</h1>
             </div>
             <div class="connection-info">
+                <!-- Meeting Timer -->
+                <div class="meeting-timer hidden" id="meeting-timer">
+                    <i class="fas fa-clock"></i>
+                    <span id="timer-display">00:00</span>
+                </div>
+                <!-- Participant Count -->
+                <div class="participant-count" id="participant-count">
+                    <i class="fas fa-users"></i>
+                    <span id="participant-number">1</span>
+                </div>
                 <div class="status-container">
                     <span class="status-dot"></span>
                     <span id="connection-status">Connecting...</span>
@@ -35,12 +45,18 @@
         <main>
             <!-- Video Area -->
             <div class="video-section">
+                <!-- Floating Emoji Reactions Container -->
+                <div class="reactions-overlay" id="reactions-overlay"></div>
+
                 <div class="video-grid" id="video-grid">
                     <!-- Local Video -->
                     <div class="video-wrapper local-video" id="local-video-wrapper">
                         <video id="local-video" autoplay muted playsinline></video>
                         <div class="video-label"><i class="fas fa-user"></i> You</div>
                         <div class="audio-indicator"><i class="fas fa-microphone"></i></div>
+                        <div class="hand-raised-indicator hidden" id="local-hand-indicator">
+                            <span>✋</span>
+                        </div>
                     </div>
                     <!-- Remote videos will go here -->
                 </div>
@@ -57,6 +73,25 @@
                         <button id="toggle-screen-btn" class="control-btn active" title="Share Screen">
                             <i class="fas fa-desktop"></i>
                         </button>
+                        <div class="control-divider"></div>
+                        <button id="raise-hand-btn" class="control-btn" title="Raise Hand">
+                            <span class="control-emoji">✋</span>
+                        </button>
+                        <button id="emoji-reaction-btn" class="control-btn" title="Send Reaction">
+                            <i class="fas fa-face-smile"></i>
+                        </button>
+
+                        <!-- Emoji Reaction Picker (hidden by default) -->
+                        <div class="reaction-picker hidden" id="reaction-picker">
+                            <button class="reaction-emoji" data-emoji="👏">👏</button>
+                            <button class="reaction-emoji" data-emoji="😂">😂</button>
+                            <button class="reaction-emoji" data-emoji="❤️">❤️</button>
+                            <button class="reaction-emoji" data-emoji="🔥">🔥</button>
+                            <button class="reaction-emoji" data-emoji="👍">👍</button>
+                            <button class="reaction-emoji" data-emoji="🎵">🎵</button>
+                            <button class="reaction-emoji" data-emoji="🎸">🎸</button>
+                            <button class="reaction-emoji" data-emoji="🥁">🥁</button>
+                        </div>
                     </div>
                     
                     <div class="call-controls">
@@ -84,7 +119,22 @@
                         </div>
                     </div>
                 </div>
+                <!-- Typing Indicator -->
+                <div class="typing-indicator hidden" id="typing-indicator">
+                    <span class="typing-text">Peer is typing</span>
+                    <span class="typing-dots">
+                        <span>.</span><span>.</span><span>.</span>
+                    </span>
+                </div>
                 <div class="chat-input-area">
+                    <button id="chat-emoji-btn" class="chat-emoji-btn" title="Insert Emoji">
+                        <i class="fas fa-face-smile"></i>
+                    </button>
+                    <!-- Chat Emoji Picker -->
+                    <div class="chat-emoji-picker hidden" id="chat-emoji-picker">
+                        <div class="emoji-picker-header">Pick an emoji</div>
+                        <div class="emoji-picker-grid" id="emoji-picker-grid"></div>
+                    </div>
                     <input type="text" id="chat-input" placeholder="Type a message..." disabled>
                     <button id="send-btn" class="send-btn" disabled><i class="fas fa-paper-plane"></i></button>
                 </div>
